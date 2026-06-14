@@ -1,0 +1,97 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { authMiddleware } from '../../common/auth-middleware';
+import { ok, fail, created, message } from '../../common/response';
+import { Permission } from '../../db/models';
+
+const router = Router();
+
+const createPermSchema = z.object({
+  code: z.string().min(2).max(100),
+  name: z.string().min(1).max(100),
+  resource: z.string().min(1).max(50),
+  action: z.string().min(1).max(50),
+  description: z.string().max(500).optional(),
+});
+
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const { resource } = req.query as any;
+
+    const where = resource ? { resource } : undefined;
+
+    const rows = await Permission.findAll({
+      where,
+      attributes: ['id', 'code', 'name', 'resource', 'action', 'description', 'created_at'],
+      order: [['resource', 'ASC'], ['action', 'ASC']],
+      raw: true,
+    });
+
+    ok(res, rows);
+  } catch {
+    fail(res, 500, '服务器内部错误');
+  }
+});
+
+router.get('/:id', authMiddleware, async (req, res) => {
+  try {
+    const perm = await Permission.findByPk(req.params.id, {
+      attributes: ['id', 'code', 'name', 'resource', 'action', 'description', 'created_at'],
+      raw: true,
+    });
+
+    if (!perm) {
+      return fail(res, 404, '权限不存在');
+    }
+
+    ok(res, perm);
+  } catch {
+    fail(res, 500, '服务器内部错误');
+  }
+});
+
+router.post('/', authMiddleware, async (req, res) => {
+  try {
+    const parsed = createPermSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return fail(res, 400, parsed.error.issues[0].message);
+    }
+
+    const { code, name, resource, action, description } = parsed.data;
+
+    const exists = await Permission.findOne({ where: { code }, attributes: ['id'] });
+    if (exists) {
+      return fail(res, 409, '权限编码已存在');
+    }
+
+    const perm = await Permission.create({
+      code,
+      name,
+      resource,
+      action,
+      description: description ?? null,
+      created_at: new Date(),
+    });
+
+    created(res, { id: perm.id, code, name, resource, action, description });
+  } catch {
+    fail(res, 500, '服务器内部错误');
+  }
+});
+
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    const perm = await Permission.findByPk(req.params.id, { attributes: ['id', 'code'], raw: true });
+
+    if (!perm) {
+      return fail(res, 404, '权限不存在');
+    }
+
+    await Permission.destroy({ where: { id: req.params.id } });
+    message(res, '权限已删除');
+  } catch {
+    fail(res, 500, '服务器内部错误');
+  }
+});
+
+export default router;
