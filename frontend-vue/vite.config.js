@@ -13,13 +13,17 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    host: '0.0.0.0',
+    watch: {
+      usePolling: true,
+    },
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:8080',
         changeOrigin: true,
       },
-      '/socket.io': {
-        target: 'http://localhost:8080',
+      '/ws': {
+        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:8080',
         ws: true,
       },
     },

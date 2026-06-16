@@ -14,12 +14,16 @@ import { Notification } from './notification';
 import { SystemSetting } from './system-setting';
 
 Project.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
+Project.belongsTo(GitCredential, { foreignKey: 'git_credential_id', as: 'gitCredential' });
+GitCredential.hasMany(Project, { foreignKey: 'git_credential_id', as: 'projects' });
 ProjectMember.belongsTo(Project, { foreignKey: 'project_id', as: 'project' });
 ProjectMember.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 Pipeline.belongsTo(Project, { foreignKey: 'project_id', as: 'project' });
+Pipeline.belongsTo(Environment, { foreignKey: 'environment_id', as: 'environment' });
 Pipeline.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 Build.belongsTo(Project, { foreignKey: 'project_id', as: 'project' });
 Build.belongsTo(Pipeline, { foreignKey: 'pipeline_id', as: 'pipeline' });
+Build.belongsTo(Environment, { foreignKey: 'environment_id', as: 'environment' });
 Build.belongsTo(User, { foreignKey: 'trigger_by', as: 'triggerUser' });
 Environment.belongsTo(Project, { foreignKey: 'project_id', as: 'project' });
 Environment.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });

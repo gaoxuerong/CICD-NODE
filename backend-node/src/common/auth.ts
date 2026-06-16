@@ -41,7 +41,7 @@ export async function isTokenBlacklisted(token: string): Promise<boolean> {
 }
 
 export async function blacklistToken(token: string, userId: number): Promise<void> {
-  await TokenBlacklist.create({ token, user_id: userId });
+  await TokenBlacklist.create({ token, user_id: userId, created_at: new Date() });
 }
 
 export function getUserFromRequest(req: Request): AuthUser {

@@ -18,7 +18,9 @@
           </template>
         </el-table-column>
         <el-table-column prop="username" label="用户名" />
-        <el-table-column prop="createdAt" label="创建时间" width="180" />
+        <el-table-column label="创建时间" width="180">
+          <template #default="{ row }">{{ row.created_at || row.createdAt || '-' }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-popconfirm title="确定删除该凭据？" @confirm="handleDelete(row.id)">
@@ -37,20 +39,24 @@
           <el-input v-model="createForm.name" placeholder="请输入凭据名称" />
         </el-form-item>
         <el-form-item label="类型">
-          <el-select v-model="createForm.type">
-            <el-option label="SSH Key" value="ssh" />
+          <el-select v-model="createForm.type" style="width: 100%">
+            <el-option label="SSH Key" value="ssh_key" />
             <el-option label="Token" value="token" />
-            <el-option label="用户名密码" value="basic" />
+            <el-option label="用户名密码" value="password" />
+            <el-option label="OAuth" value="oauth" />
           </el-select>
         </el-form-item>
         <el-form-item label="用户名">
           <el-input v-model="createForm.username" placeholder="请输入用户名" />
         </el-form-item>
-        <el-form-item v-if="createForm.type === 'ssh'" label="私钥">
-          <el-input v-model="createForm.privateKey" type="textarea" :rows="6" placeholder="粘贴 SSH 私钥" />
+        <el-form-item v-if="createForm.type === 'ssh_key'" label="私钥">
+          <el-input v-model="createForm.credential" type="textarea" :rows="6" placeholder="粘贴 SSH 私钥" />
         </el-form-item>
         <el-form-item v-else label="密码/Token">
-          <el-input v-model="createForm.password" type="textarea" :rows="3" placeholder="请输入密码或 Token" />
+          <el-input v-model="createForm.credential" type="textarea" :rows="3" placeholder="请输入密码或 Token" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="createForm.description" type="textarea" :rows="2" placeholder="可选" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -72,10 +78,10 @@ const showCreateDialog = ref(false)
 
 const createForm = reactive({
   name: '',
-  type: 'ssh',
+  type: 'token',
   username: '',
-  privateKey: '',
-  password: '',
+  credential: '',
+  description: '',
 })
 
 const fetchCredentials = async () => {
@@ -90,16 +96,29 @@ const fetchCredentials = async () => {
 }
 
 const handleCreate = async () => {
-  if (!createForm.name) {
-    ElMessage.warning('请输入凭据名称')
+  if (!createForm.name || !createForm.credential) {
+    ElMessage.warning('请输入凭据名称和凭据内容')
     return
   }
   try {
-    const res = await gitCredentialApi.create(createForm)
+    const res = await gitCredentialApi.create({
+      name: createForm.name,
+      type: createForm.type,
+      username: createForm.username || undefined,
+      credential: createForm.credential,
+      description: createForm.description || undefined,
+    })
     if (res.data.code === 0) {
       ElMessage.success('创建成功')
       showCreateDialog.value = false
+      createForm.name = ''
+      createForm.type = 'token'
+      createForm.username = ''
+      createForm.credential = ''
+      createForm.description = ''
       fetchCredentials()
+    } else {
+      ElMessage.error(res.data.message || '创建失败')
     }
   } catch {
     ElMessage.error('创建失败')

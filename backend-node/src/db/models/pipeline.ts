@@ -5,6 +5,7 @@ export class Pipeline extends Model<InferAttributes<Pipeline>, InferCreationAttr
   declare id: CreationOptional<number>;
   declare name: string;
   declare project_id: number;
+  declare environment_id: number | null;
   declare trigger_type: string;
   declare branch_filter: string | null;
   declare config: string | null;
@@ -20,6 +21,7 @@ Pipeline.init(
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
     name: { type: DataTypes.STRING(100), allowNull: false },
     project_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    environment_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     trigger_type: { type: DataTypes.STRING(50), allowNull: false },
     branch_filter: { type: DataTypes.STRING(255), allowNull: true },
     config: { type: DataTypes.JSON, allowNull: true },

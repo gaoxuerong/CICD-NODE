@@ -14,6 +14,49 @@ const createPermSchema = z.object({
   description: z.string().max(500).optional(),
 });
 
+/**
+ * @swagger
+ * /api/permissions:
+ *   get:
+ *     tags: [Permissions]
+ *     summary: 获取权限列表
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: resource
+ *         schema:
+ *           type: string
+ *         description: 按资源筛选
+ *     responses:
+ *       200:
+ *         description: 成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 0
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       code:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       resource:
+ *                         type: string
+ *                       action:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ */
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const { resource } = req.query as any;
@@ -33,6 +76,26 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/permissions/{id}:
+ *   get:
+ *     tags: [Permissions]
+ *     summary: 获取权限详情
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: 成功
+ *       404:
+ *         description: 权限不存在
+ */
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const perm = await Permission.findByPk(req.params.id, {
@@ -50,6 +113,53 @@ router.get('/:id', authMiddleware, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/permissions:
+ *   post:
+ *     tags: [Permissions]
+ *     summary: 创建权限
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [code, name, resource, action]
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 minLength: 2
+ *                 maxLength: 100
+ *                 example: project:create
+ *               name:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 100
+ *                 example: 创建项目
+ *               resource:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 50
+ *                 example: project
+ *               action:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 50
+ *                 example: create
+ *               description:
+ *                 type: string
+ *                 maxLength: 500
+ *     responses:
+ *       201:
+ *         description: 创建成功
+ *       400:
+ *         description: 参数错误
+ *       409:
+ *         description: 权限编码已存在
+ */
 router.post('/', authMiddleware, async (req, res) => {
   try {
     const parsed = createPermSchema.safeParse(req.body);
@@ -79,6 +189,26 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/permissions/{id}:
+ *   delete:
+ *     tags: [Permissions]
+ *     summary: 删除权限
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: 删除成功
+ *       404:
+ *         description: 权限不存在
+ */
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const perm = await Permission.findByPk(req.params.id, { attributes: ['id', 'code'], raw: true });

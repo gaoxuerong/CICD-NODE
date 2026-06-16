@@ -28,6 +28,16 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <el-pagination
+        v-if="total > 0"
+        :current-page="currentPage"
+        :page-size="pageSize"
+        :total="total"
+        layout="total, prev, pager, next"
+        style="margin-top: 16px; justify-content: flex-end"
+        @current-change="handlePageChange"
+      />
     </el-card>
   </div>
 </template>
@@ -39,16 +49,25 @@ import { notificationApi } from '@/api/notification'
 
 const loading = ref(true)
 const notifications = ref<any[]>([])
+const total = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(20)
 
 const fetchNotifications = async () => {
   try {
-    const res = await notificationApi.getList()
+    const res = await notificationApi.getList({ page: currentPage.value, pageSize: pageSize.value })
     if (res.data.code === 0) {
       notifications.value = res.data.data?.items || res.data.data?.list || res.data.data || []
+      total.value = res.data.data?.total || notifications.value.length || 0
     }
   } finally {
     loading.value = false
   }
+}
+
+const handlePageChange = (page: number) => {
+  currentPage.value = page
+  fetchNotifications()
 }
 
 const handleMarkRead = async (id: number) => {

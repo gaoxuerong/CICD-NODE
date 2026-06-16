@@ -4,13 +4,13 @@ export const roleApi = {
   getList(params?: any) {
     return request.get('/roles', { params })
   },
-  getDetail(roleCode: string) {
-    return request.get(`/roles/${roleCode}`)
+  getDetail(id: number) {
+    return request.get(`/roles/${id}`)
   },
-  updatePermissions(roleCode: string, permissions: any) {
-    return request.put(`/roles/${roleCode}/permissions`, permissions)
+  update(id: number, data: any) {
+    return request.put(`/roles/${id}`, data)
   },
-  delete(roleCode: string) {
-    return request.delete(`/roles/${roleCode}`)
+  delete(id: number) {
+    return request.delete(`/roles/${id}`)
   },
 }

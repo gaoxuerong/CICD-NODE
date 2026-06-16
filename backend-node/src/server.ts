@@ -6,6 +6,8 @@ import { connectDb } from './db/sequelize';
 import { migrate } from './db/migrate';
 import { seed } from './db/seed';
 import app from './app';
+import { logger } from './common/logger';
+import { startBuildStatusSync } from './services/build-sync';
 
 let broadcastFn: (data: object) => void;
 
@@ -13,13 +15,14 @@ async function start() {
   await connectDb();
   await migrate();
   await seed();
+  await startBuildStatusSync();
 
   const server = http.createServer(app);
 
   const wss = new WebSocketServer({ server, path: '/ws' });
 
   wss.on('connection', (ws) => {
-    console.log('WebSocket client connected');
+    logger.info('websocket_connected');
 
     ws.on('message', (data) => {
       try {
@@ -33,7 +36,7 @@ async function start() {
     });
 
     ws.on('close', () => {
-      console.log('WebSocket client disconnected');
+      logger.info('websocket_disconnected');
     });
 
     ws.send(JSON.stringify({ type: 'connected', message: 'WebSocket connected' }));
@@ -52,8 +55,10 @@ async function start() {
   const host = config.host;
 
   server.listen(port, host, () => {
-    console.log(`Server running at http://${host}:${port}`);
-    console.log(`WebSocket available at ws://${host}:${port}/ws`);
+    logger.info('server_started', {
+      httpUrl: `http://${host}:${port}`,
+      wsUrl: `ws://${host}:${port}/ws`,
+    });
   });
 }
 

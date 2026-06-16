@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authMiddleware } from '../../common/auth-middleware';
+import { authMiddleware, requirePermission } from '../../common/auth-middleware';
 import { encrypt, decrypt } from '../../common/crypto';
 import { ok, fail, created, message } from '../../common/response';
 import { GitCredential, User, AuditLog } from '../../db/models';
@@ -15,13 +15,55 @@ const createSchema = z.object({
   description: z.string().max(500).optional(),
 });
 
-router.get('/', authMiddleware, async (_req, res) => {
+/**
+ * @swagger
+ * /api/git-credentials:
+ *   get:
+ *     tags: [GitCredentials]
+ *     summary: 获取 Git 凭证列表
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 0
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       name:
+ *                         type: string
+ *                       type:
+ *                         type: string
+ *                         enum: [ssh_key, token, password, oauth]
+ *                       username:
+ *                         type: string
+ *                       credential:
+ *                         type: string
+ *                         example: "********"
+ *                       description:
+ *                         type: string
+ *                       created_by:
+ *                         type: integer
+ *                       created_at:
+ *                         type: string
+ */
+router.get('/', authMiddleware, requirePermission('git.view'), async (_req, res) => {
   try {
     const rows = await GitCredential.findAll({
       attributes: ['id', 'name', 'type', 'username', 'description', 'created_by', 'created_at', 'updated_at'],
       include: [{ model: User, as: 'creator', attributes: ['username'] }],
       order: [['id', 'DESC']],
-      raw: true,
     });
 
     const masked = rows.map((r) => {
@@ -39,12 +81,31 @@ router.get('/', authMiddleware, async (_req, res) => {
   }
 });
 
-router.get('/:id', authMiddleware, async (req, res) => {
+/**
+ * @swagger
+ * /api/git-credentials/{id}:
+ *   get:
+ *     tags: [GitCredentials]
+ *     summary: 获取 Git 凭证详情
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: 成功
+ *       404:
+ *         description: 凭证不存在
+ */
+router.get('/:id', authMiddleware, requirePermission('git.view'), async (req, res) => {
   try {
     const cred = await GitCredential.findByPk(req.params.id, {
       attributes: ['id', 'name', 'type', 'username', 'description', 'created_by', 'created_at', 'updated_at'],
       include: [{ model: User, as: 'creator', attributes: ['username'] }],
-      raw: true,
     });
 
     if (!cred) return fail(res, 404, '凭证不存在');
@@ -56,7 +117,44 @@ router.get('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/', authMiddleware, async (req, res) => {
+/**
+ * @swagger
+ * /api/git-credentials:
+ *   post:
+ *     tags: [GitCredentials]
+ *     summary: 创建 Git 凭证
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, type, credential]
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 100
+ *               type:
+ *                 type: string
+ *                 enum: [ssh_key, token, password, oauth]
+ *               username:
+ *                 type: string
+ *               credential:
+ *                 type: string
+ *                 description: 凭证内容（SSH 密钥、Token 等）
+ *               description:
+ *                 type: string
+ *                 maxLength: 500
+ *     responses:
+ *       201:
+ *         description: 创建成功
+ *       400:
+ *         description: 参数错误
+ */
+router.post('/', authMiddleware, requirePermission('git.manage'), async (req, res) => {
   try {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) return fail(res, 400, parsed.error.issues[0].message);
@@ -82,7 +180,45 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
-router.put('/:id', authMiddleware, async (req, res) => {
+/**
+ * @swagger
+ * /api/git-credentials/{id}:
+ *   put:
+ *     tags: [GitCredentials]
+ *     summary: 更新 Git 凭证
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [ssh_key, token, password, oauth]
+ *               username:
+ *                 type: string
+ *               credential:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: 更新成功
+ *       404:
+ *         description: 凭证不存在
+ */
+router.put('/:id', authMiddleware, requirePermission('git.manage'), async (req, res) => {
   try {
     const cred = await GitCredential.findByPk(req.params.id, { raw: true });
     if (!cred) return fail(res, 404, '凭证不存在');
@@ -105,7 +241,50 @@ router.put('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/:id/decrypt', authMiddleware, async (req, res) => {
+/**
+ * @swagger
+ * /api/git-credentials/{id}/decrypt:
+ *   get:
+ *     tags: [GitCredentials]
+ *     summary: 解密获取凭证内容
+ *     description: 解密后会记录审计日志
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: 成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 0
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     name:
+ *                       type: string
+ *                     type:
+ *                       type: string
+ *                     username:
+ *                       type: string
+ *                     credential:
+ *                       type: string
+ *                       description: 解密后的凭证内容
+ *       404:
+ *         description: 凭证不存在
+ */
+router.get('/:id/decrypt', authMiddleware, requirePermission('git.manage'), async (req, res) => {
   try {
     const cred = await GitCredential.findByPk(req.params.id, { attributes: ['id', 'name', 'type', 'username', 'credential'], raw: true });
 
@@ -130,7 +309,27 @@ router.get('/:id/decrypt', authMiddleware, async (req, res) => {
   }
 });
 
-router.delete('/:id', authMiddleware, async (req, res) => {
+/**
+ * @swagger
+ * /api/git-credentials/{id}:
+ *   delete:
+ *     tags: [GitCredentials]
+ *     summary: 删除 Git 凭证
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: 删除成功
+ *       404:
+ *         description: 凭证不存在
+ */
+router.delete('/:id', authMiddleware, requirePermission('git.manage'), async (req, res) => {
   try {
     const cred = await GitCredential.findByPk(req.params.id, { attributes: ['id', 'name'], raw: true });
 

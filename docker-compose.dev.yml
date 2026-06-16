@@ -1,0 +1,49 @@
+services:
+  mysql:
+    ports:
+      - "127.0.0.1:${MYSQL_DEV_PORT:-13306}:3306"
+
+  backend-node:
+    build:
+      context: ./backend-node
+      dockerfile: Dockerfile.dev
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+    volumes:
+      - ./backend-node:/app
+      - backend-node-modules:/app/node_modules
+    command: npm run dev
+    ports:
+      - "${BACKEND_DEV_PORT:-8080}:8080"
+
+  frontend:
+    build:
+      context: ./frontend-vue
+      dockerfile: Dockerfile.dev
+    depends_on:
+      backend-node:
+        condition: service_healthy
+    environment:
+      VITE_API_PROXY_TARGET: http://backend-node:8080
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./frontend-vue:/app
+      - frontend-node-modules:/app/node_modules
+    command: npm run dev -- --host 0.0.0.0
+    ports: !override
+      - "${APP_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  prometheus:
+    depends_on:
+      backend-node:
+        condition: service_healthy
+
+volumes:
+  backend-node-modules:
+  frontend-node-modules:

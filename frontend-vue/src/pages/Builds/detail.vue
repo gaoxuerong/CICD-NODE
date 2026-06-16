@@ -7,17 +7,28 @@
 
     <el-card v-if="build">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="构建号">{{ build.buildNumber }}</el-descriptions-item>
+        <el-descriptions-item label="构建号">#{{ build.build_number || build.buildNumber }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(build.status)">{{ getStatusText(build.status) }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="项目">{{ build.projectName || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="流水线">{{ build.pipelineName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="项目">{{ build.project_name || build.projectName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="流水线">{{ build.pipeline_name || build.pipelineName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="目标环境">
+          <el-tag :type="environmentTypeTag(build.environment_type)">
+            {{ build.environment_name || '-' }}
+          </el-tag>
+        </el-descriptions-item>
         <el-descriptions-item label="分支">{{ build.branch || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="提交">{{ build.commitSha || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="耗时" :span="2">{{ build.duration }}s</el-descriptions-item>
-        <el-descriptions-item label="开始时间">{{ build.startedAt }}</el-descriptions-item>
-        <el-descriptions-item label="结束时间">{{ build.finishedAt || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="提交">{{ build.commit_sha || build.commitSha || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="耗时">{{ build.duration ?? '-' }}<span v-if="build.duration !== null && build.duration !== undefined">s</span></el-descriptions-item>
+        <el-descriptions-item label="GitHub Run">
+          <el-link v-if="build.github_run_url" type="primary" :href="build.github_run_url" target="_blank">
+            打开 GitHub Actions
+          </el-link>
+          <span v-else>-</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="开始时间">{{ build.started_at || build.startedAt || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="结束时间">{{ build.finished_at || build.finishedAt || '-' }}</el-descriptions-item>
       </el-descriptions>
     </el-card>
 
@@ -44,10 +55,18 @@ const statusMap: Record<string, { text: string; type: string }> = {
   failed: { text: '失败', type: 'danger' },
   running: { text: '运行中', type: 'primary' },
   pending: { text: '排队中', type: 'info' },
+  cancelled: { text: '已取消', type: 'warning' },
+  timeout: { text: '超时', type: 'warning' },
 }
 
 const getStatusText = (status: string) => statusMap[status]?.text || status
 const getStatusType = (status: string) => statusMap[status]?.type || 'info'
+const environmentTypeTag = (type: string) => {
+  if (type === 'production') return 'danger'
+  if (type === 'staging') return 'warning'
+  if (type === 'testing') return 'success'
+  return 'info'
+}
 
 onMounted(async () => {
   try {

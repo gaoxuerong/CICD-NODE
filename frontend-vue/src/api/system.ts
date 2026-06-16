@@ -5,9 +5,15 @@ export const systemApi = {
     return request.get('/settings')
   },
   updateSettings(data: any) {
-    return request.put('/settings', data)
+    return request.put('/settings', { settings: data })
   },
-  testSmtp(data: any) {
-    return request.post('/settings/test-smtp', data)
+  updateSetting(key: string, value: any) {
+    return request.put(`/settings/${key}`, { value })
+  },
+  sendTestEmail() {
+    return request.post('/settings/test-email')
+  },
+  resetSetting(key: string) {
+    return request.delete(`/settings/${key}`)
   },
 }

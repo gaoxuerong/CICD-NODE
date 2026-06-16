@@ -4,7 +4,7 @@
 
     <el-card>
       <div style="margin-bottom: 16px">
-        <el-button type="primary" @click="showCreateDialog = true">
+        <el-button type="primary" @click="handleCreate">
           <el-icon><Plus /></el-icon>
           创建用户
         </el-button>
@@ -20,7 +20,9 @@
             <el-tag>{{ getRoleName(row.role) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" width="180" />
+        <el-table-column label="创建时间" width="180">
+          <template #default="{ row }">{{ row.created_at || row.createdAt || '-' }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
@@ -35,7 +37,7 @@
       </el-table>
 
       <el-pagination
-        v-if="total > pageSize"
+        v-if="total > 0"
         :current-page="currentPage"
         :page-size="pageSize"
         :total="total"
@@ -45,7 +47,7 @@
       />
     </el-card>
 
-    <el-dialog v-model="showCreateDialog" :title="editingUser ? '编辑用户' : '创建用户'" width="500">
+    <el-dialog v-model="showCreateDialog" :title="editingUser ? '编辑用户' : '创建用户'" width="500" @closed="resetForm">
       <el-form :model="createForm" label-width="80px">
         <el-form-item label="用户名" required>
           <el-input v-model="createForm.username" :disabled="!!editingUser" placeholder="请输入用户名" />
@@ -66,7 +68,6 @@
             <el-option label="项目管理者" value="manager" />
             <el-option label="开发者" value="developer" />
             <el-option label="普通用户" value="user" />
-            <el-option label="访客" value="viewer" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -100,6 +101,15 @@ const createForm = reactive({
   role: 'developer',
 })
 
+const resetForm = () => {
+  editingUser.value = null
+  createForm.username = ''
+  createForm.password = ''
+  createForm.nickname = ''
+  createForm.email = ''
+  createForm.role = 'developer'
+}
+
 const fetchUsers = async () => {
   loading.value = true
   try {
@@ -119,6 +129,7 @@ const handlePageChange = (page: number) => {
 }
 
 const handleEdit = (user: any) => {
+  resetForm()
   editingUser.value = user
   createForm.username = user.username
   createForm.nickname = user.nickname || ''
@@ -127,29 +138,43 @@ const handleEdit = (user: any) => {
   showCreateDialog.value = true
 }
 
+const handleCreate = () => {
+  resetForm()
+  showCreateDialog.value = true
+}
+
 const handleSubmit = async () => {
-  if (editingUser.value) {
-    const res = await userApi.update(editingUser.value.id, {
-      nickname: createForm.nickname,
-      email: createForm.email,
-      role: createForm.role,
-    })
-    if (res.data.code === 0) {
-      ElMessage.success('更新成功')
+  try {
+    if (editingUser.value) {
+      const res = await userApi.update(editingUser.value.id, {
+        nickname: createForm.nickname,
+        email: createForm.email,
+        role: createForm.role,
+      })
+      if (res.data.code === 0) {
+        ElMessage.success('更新成功')
+      } else {
+        ElMessage.error(res.data.message || '更新失败')
+        return
+      }
+    } else {
+      if (!createForm.username || !createForm.password) {
+        ElMessage.warning('请填写必填项')
+        return
+      }
+      const res = await userApi.create(createForm)
+      if (res.data.code === 0) {
+        ElMessage.success('创建成功')
+      } else {
+        ElMessage.error(res.data.message || '创建失败')
+        return
+      }
     }
-  } else {
-    if (!createForm.username || !createForm.password) {
-      ElMessage.warning('请填写必填项')
-      return
-    }
-    const res = await userApi.create(createForm)
-    if (res.data.code === 0) {
-      ElMessage.success('创建成功')
-    }
+    showCreateDialog.value = false
+    fetchUsers()
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.message || (editingUser.value ? '更新失败' : '创建失败'))
   }
-  showCreateDialog.value = false
-  editingUser.value = null
-  fetchUsers()
 }
 
 const handleResetPassword = async (user: any) => {

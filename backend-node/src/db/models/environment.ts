@@ -30,5 +30,12 @@ Environment.init(
   {
     sequelize,
     tableName: 'environments',
+    indexes: [
+      {
+        unique: true,
+        fields: ['project_id', 'type'],
+        name: 'uniq_environments_project_type',
+      },
+    ],
   }
 );

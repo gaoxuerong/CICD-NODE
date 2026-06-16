@@ -35,7 +35,7 @@ const routes: RouteRecordRaw[] = [
         path: 'projects/:projectId/members',
         name: 'ProjectMembers',
         component: () => import('@/pages/Projects/members.vue'),
-        meta: { title: '成员管理', permission: 'projects.manage' },
+        meta: { title: '成员管理', permission: 'projects.view' },
       },
       {
         path: 'pipelines',
@@ -47,7 +47,7 @@ const routes: RouteRecordRaw[] = [
         path: 'pipelines/create',
         name: 'PipelineCreate',
         component: () => import('@/pages/Pipelines/create.vue'),
-        meta: { title: '创建流水线', permission: 'pipelines.create' },
+        meta: { title: '创建流水线', permission: 'pipelines.view' },
       },
       {
         path: 'pipelines/:id',
@@ -59,7 +59,7 @@ const routes: RouteRecordRaw[] = [
         path: 'pipelines/:id/edit',
         name: 'PipelineEdit',
         component: () => import('@/pages/Pipelines/edit.vue'),
-        meta: { title: '编辑流水线', permission: 'pipelines.manage' },
+        meta: { title: '编辑流水线', permission: 'pipelines.view' },
       },
       {
         path: 'builds',

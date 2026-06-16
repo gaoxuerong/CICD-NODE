@@ -11,7 +11,7 @@ export const buildApi = {
     return request.post('/builds', data)
   },
   cancel(id: number) {
-    return request.put(`/builds/${id}/cancel`)
+    return request.post(`/builds/${id}/cancel`)
   },
   retry(id: number) {
     return request.post(`/builds/${id}/retry`)

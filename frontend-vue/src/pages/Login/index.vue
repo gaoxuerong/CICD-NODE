@@ -90,8 +90,8 @@ const handleSubmit = async () => {
       } else {
         ElMessage.error('登录失败')
       }
-    } catch (error) {
-      ElMessage.error('登录失败，请检查用户名和密码')
+    } catch (error: any) {
+      ElMessage.error(error?.response?.data?.message || '登录失败，请检查用户名和密码')
     } finally {
       loading.value = false
     }

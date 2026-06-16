@@ -33,10 +33,19 @@ export interface Project {
   name: string
   description?: string
   repositoryUrl?: string
+  language?: string
+  source?: string
+  gitCredentialId?: number | null
+  git_credential_id?: number | null
+  git_credential_name?: string | null
+  git_credential_type?: string | null
   defaultBranch?: string
+  default_branch?: string
   status?: string
   createdAt?: string
+  created_at?: string
   updatedAt?: string
+  updated_at?: string
 }
 
 export interface Pipeline {
@@ -86,9 +95,11 @@ export interface Notification {
 
 export interface Role {
   id?: number
-  roleCode: string
-  roleName: string
+  code: string
+  name: string
   description?: string
+  level?: number
+  is_system?: number
   permissions?: string[]
 }
 

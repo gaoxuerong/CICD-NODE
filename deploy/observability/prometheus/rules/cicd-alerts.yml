@@ -1,0 +1,47 @@
+groups:
+  - name: cicd-platform
+    rules:
+      - alert: BackendDown
+        expr: up{job="cicd-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CI/CD backend is down"
+          description: "Prometheus cannot scrape backend-node:8080 for more than 1 minute."
+
+      - alert: BackendHighErrorRate
+        expr: |
+          sum(rate(cicd_backend_http_requests_total{status_code=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(cicd_backend_http_requests_total[5m])), 1)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CI/CD backend 5xx error rate is high"
+          description: "5xx error rate has been above 5% for 5 minutes."
+
+      - alert: AuthRefreshFailures
+        expr: |
+          sum(rate(cicd_backend_http_requests_total{route="/api/auth/refresh",status_code=~"4..|5.."}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Auth refresh failures increased"
+          description: "Refresh token endpoint has sustained failures for 5 minutes."
+
+      - alert: BackendSlowRequests
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(cicd_backend_http_request_duration_seconds_bucket[5m])) by (le, route)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CI/CD backend requests are slow"
+          description: "P95 latency is above 2 seconds for route {{ $labels.route }}."

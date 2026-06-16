@@ -20,10 +20,9 @@ export async function seed() {
   await Role.bulkCreate([
     { code: 'superadmin', name: '超级管理员', description: 'Full system access', level: 100, is_system: 1, permissions: '["*"]', created_at: now, updated_at: now },
     { code: 'admin', name: '系统管理员', description: 'Administrative access', level: 80, is_system: 1, permissions: '["dashboard.view","projects.view","projects.create","projects.manage","pipelines.view","pipelines.create","pipelines.manage","builds.view","builds.trigger","builds.manage","environments.view","environments.manage","users.view","users.manage","roles.view","roles.manage","permissions.view","permissions.manage","settings.view","settings.manage","audit.view","git.view","git.manage","notifications.view"]', created_at: now, updated_at: now },
-    { code: 'manager', name: '项目管理者', description: 'Project manager access', level: 60, is_system: 1, permissions: '["dashboard.view","projects.view","projects.create","projects.manage","pipelines.view","pipelines.create","pipelines.manage","builds.view","builds.trigger","builds.manage","environments.view","environments.manage","notifications.view"]', created_at: now, updated_at: now },
+    { code: 'manager', name: '项目管理者', description: 'Project manager access', level: 60, is_system: 1, permissions: '["dashboard.view","projects.view","projects.create","projects.manage","pipelines.view","pipelines.create","pipelines.manage","builds.view","builds.trigger","builds.manage","environments.view","environments.manage","git.view","notifications.view"]', created_at: now, updated_at: now },
     { code: 'user', name: '普通用户', description: 'Regular user access', level: 20, is_system: 1, permissions: '["dashboard.view","projects.view","notifications.view"]', created_at: now, updated_at: now },
     { code: 'developer', name: '开发者', description: 'Developer access', level: 40, is_system: 1, permissions: '["dashboard.view","projects.view","pipelines.view","pipelines.create","builds.view","builds.trigger","notifications.view"]', created_at: now, updated_at: now },
-    { code: 'viewer', name: '访客', description: 'Read-only access', level: 10, is_system: 1, permissions: '["dashboard.view","projects.view","pipelines.view","builds.view","notifications.view"]', created_at: now, updated_at: now },
   ]);
 
   await Permission.bulkCreate([

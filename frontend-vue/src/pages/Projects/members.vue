@@ -3,7 +3,7 @@
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px">
       <h1>成员管理</h1>
       <div>
-        <el-button type="primary" @click="showAddDialog = true">添加成员</el-button>
+        <el-button type="primary" :disabled="!canManageMembers" @click="showAddDialog = true">添加成员</el-button>
         <el-button @click="router.back()">返回</el-button>
       </div>
     </div>
@@ -22,7 +22,7 @@
           <template #default="{ row }">
             <el-popconfirm title="确定移除该成员？" @confirm="handleRemove(row.userId)">
               <template #reference>
-                <el-button link type="danger">移除</el-button>
+                <el-button link type="danger" :disabled="!canManageMembers || row.role === 'owner'">移除</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -39,20 +39,19 @@
           <el-select v-model="addForm.role" placeholder="请选择角色">
             <el-option label="开发者" value="developer" />
             <el-option label="维护者" value="maintainer" />
-            <el-option label="访客" value="guest" />
           </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showAddDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleAdd">确定</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleAdd">确定</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { computed, ref, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { projectApi } from '@/api/project'
@@ -61,6 +60,8 @@ import { getRoleName } from '@/utils/permission'
 const route = useRoute()
 const router = useRouter()
 const loading = ref(true)
+const submitting = ref(false)
+const project = ref<any>(null)
 const members = ref<any[]>([])
 const showAddDialog = ref(false)
 
@@ -70,13 +71,31 @@ const addForm = reactive({
 })
 
 const projectId = Number(route.params.projectId)
+const canManageMembers = computed(() => Boolean(project.value?.permissions?.canManageMembers))
+
+const getErrorMessage = (error: any, fallback: string) => error?.response?.data?.message || fallback
 
 const fetchMembers = async () => {
   try {
-    const res = await projectApi.getMembers(projectId)
-    if (res.data.code === 0) {
-      members.value = res.data.data || []
+    const [projectRes, membersRes] = await Promise.all([
+      projectApi.getDetail(projectId),
+      projectApi.getMembers(projectId),
+    ])
+    if (projectRes.data.code === 0) {
+      project.value = projectRes.data.data
     }
+    if (membersRes.data.code === 0) {
+      members.value = (membersRes.data.data || []).map((item: any) => ({
+        ...item,
+        userId: item.user_id ?? item.userId,
+        username: item['user.username'] ?? item.username ?? item.user?.username,
+        nickname: item['user.nickname'] ?? item.nickname ?? item.user?.nickname,
+        avatar: item['user.avatar'] ?? item.avatar ?? item.user?.avatar,
+        joinedAt: item.joined_at ?? item.joinedAt,
+      }))
+    }
+  } catch (error: any) {
+    ElMessage.error(getErrorMessage(error, '加载成员失败'))
   } finally {
     loading.value = false
   }
@@ -87,15 +106,25 @@ const handleAdd = async () => {
     ElMessage.warning('请输入用户ID')
     return
   }
+  submitting.value = true
   try {
-    const res = await projectApi.addMember(projectId, addForm)
+    const res = await projectApi.addMember(projectId, {
+      user_id: addForm.userId,
+      role: addForm.role,
+    })
     if (res.data.code === 0) {
       ElMessage.success('添加成功')
       showAddDialog.value = false
+      addForm.userId = null
+      addForm.role = 'developer'
       fetchMembers()
+    } else {
+      ElMessage.error(res.data.message || '添加失败')
     }
-  } catch {
-    ElMessage.error('添加失败')
+  } catch (error: any) {
+    ElMessage.error(getErrorMessage(error, '添加失败'))
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -105,9 +134,11 @@ const handleRemove = async (userId: number) => {
     if (res.data.code === 0) {
       ElMessage.success('移除成功')
       fetchMembers()
+    } else {
+      ElMessage.error(res.data.message || '移除失败')
     }
-  } catch {
-    ElMessage.error('移除失败')
+  } catch (error: any) {
+    ElMessage.error(getErrorMessage(error, '移除失败'))
   }
 }
 
