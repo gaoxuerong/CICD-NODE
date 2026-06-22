@@ -12,6 +12,11 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   'git.auto_sync': 'false',
   'git.sync_interval_minutes': '5',
   'git.default_provider': 'github',
+  'ai.enabled': 'false',
+  'ai.provider': 'openai',
+  'ai.base_url': 'https://api.openai.com/v1',
+  'ai.model': 'gpt-4o-mini',
+  'ai.api_key': '',
 };
 
 export async function getSetting(key: string, fallback = '') {

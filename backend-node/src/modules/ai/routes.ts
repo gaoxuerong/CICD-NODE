@@ -1,0 +1,175 @@
+import { Router } from 'express';
+import { authMiddleware } from '../../common/auth-middleware';
+import { fail, ok } from '../../common/response';
+import { getSettings, isEnabled } from '../../services/settings-service';
+
+const router = Router();
+
+type ChatMessage = {
+  role?: string;
+  content?: unknown;
+};
+
+type OpenAiChatResponse = {
+  choices?: Array<{ message?: { content?: string } }>;
+  error?: { message?: string };
+};
+
+type OpenAiStreamChunk = {
+  choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
+  error?: { message?: string };
+};
+
+function normalizeContent(content: unknown) {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object' && 'text' in item) return String((item as { text?: unknown }).text ?? '');
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+  if (content == null) return '';
+  return String(content);
+}
+
+function toOpenAiMessages(messages: ChatMessage[]) {
+  const normalized = messages
+    .map((message) => ({
+      role: message.role === 'assistant' ? 'assistant' : 'user',
+      content: normalizeContent(message.content).trim(),
+    }))
+    .filter((message) => message.content);
+
+  return [
+    {
+      role: 'system',
+      content:
+        '你是 CI/CD 平台帮助中心助手。请用简体中文回答，优先围绕项目、流水线、构建、环境、Git 凭据、权限、通知、系统配置和 GitHub Actions 触发流程提供操作建议。无法确定时说明需要管理员检查配置，不要编造平台不存在的能力。',
+    },
+    ...normalized.slice(-12),
+  ];
+}
+
+function normalizeBaseUrl(value: string) {
+  const rawValue = value || 'https://api.openai.com/v1';
+  let parsed: URL;
+  try {
+    parsed = new URL(rawValue);
+  } catch {
+    throw new Error('AI Base URL 格式不正确，请填写完整的 http(s) 地址');
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('AI Base URL 仅支持 http 或 https');
+  }
+
+  return rawValue.replace(/\/+$/, '');
+}
+
+router.post('/chat', authMiddleware, async (req, res) => {
+  try {
+    const { messages, stream } = req.body ?? {};
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return fail(res, 400, 'messages 必须是非空数组');
+    }
+
+    const settings = await getSettings(['ai.enabled', 'ai.base_url', 'ai.model', 'ai.api_key']);
+    if (!isEnabled(settings['ai.enabled'])) {
+      return fail(res, 400, 'AI 助手未启用，请先在系统配置中开启');
+    }
+    if (!settings['ai.api_key']) {
+      return fail(res, 400, 'AI API Key 未配置');
+    }
+
+    let baseUrl: string;
+    try {
+      baseUrl = normalizeBaseUrl(settings['ai.base_url']);
+    } catch (err) {
+      return fail(res, 400, err instanceof Error ? err.message : 'AI Base URL 配置不正确');
+    }
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${settings['ai.api_key']}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: settings['ai.model'] || 'gpt-4o-mini',
+        messages: toOpenAiMessages(messages),
+        stream: stream === true,
+        temperature: 0.2,
+      }),
+    });
+
+    if (stream === true) {
+      if (!response.ok || !response.body) {
+        const payload = (await response.json().catch(() => ({}))) as OpenAiChatResponse;
+        const errorMessage = payload?.error?.message || 'AI 服务调用失败';
+        res.status(response.status >= 500 ? 502 : 400);
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.end(errorMessage);
+        return;
+      }
+
+      res.status(200);
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data:')) continue;
+
+            const data = trimmed.slice(5).trim();
+            if (data === '[DONE]') {
+              res.end();
+              return;
+            }
+
+            try {
+              const chunk = JSON.parse(data) as OpenAiStreamChunk;
+              const content = chunk.choices?.[0]?.delta?.content;
+              if (content) res.write(content);
+            } catch {
+              // Ignore malformed SSE fragments from upstream.
+            }
+          }
+        }
+      } finally {
+        res.end();
+      }
+      return;
+    }
+
+    const payload = (await response.json().catch(() => ({}))) as OpenAiChatResponse;
+    if (!response.ok) {
+      const errorMessage = payload?.error?.message || 'AI 服务调用失败';
+      return fail(res, response.status >= 500 ? 502 : 400, errorMessage);
+    }
+
+    const answer = payload?.choices?.[0]?.message?.content;
+    ok(res, { answer: typeof answer === 'string' && answer.trim() ? answer : 'AI 未返回有效内容' });
+  } catch (err) {
+    fail(res, 502, err instanceof Error ? `AI 服务连接失败：${err.message}` : 'AI 服务连接失败');
+  }
+});
+
+export default router;

@@ -21,6 +21,7 @@ import dashboardRoutes from './modules/dashboard/routes';
 import auditLogsRoutes from './modules/audit-logs/routes';
 import gitCredentialsRoutes from './modules/git-credentials/routes';
 import settingsRoutes from './modules/settings/routes';
+import aiRoutes from './modules/ai/routes';
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/audit-logs', auditLogsRoutes);
 app.use('/api/git-credentials', gitCredentialsRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/ai', aiRoutes);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const status = err.status ?? 500;

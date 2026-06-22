@@ -85,6 +85,20 @@ const SETTING_GROUPS: Array<{ code: string; name: string; description: string; s
     ],
   },
   {
+    code: 'ai',
+    name: 'AI 助手',
+    description: '帮助中心智能问答配置。',
+    settings: [
+      { key: 'ai.enabled', label: '启用 AI 助手', description: '是否在帮助中心启用智能问答。', type: 'boolean', defaultValue: 'false' },
+      { key: 'ai.provider', label: 'AI Provider', description: '当前使用的 AI 服务商。', type: 'select', defaultValue: 'openai', options: [
+        { label: 'OpenAI 兼容接口', value: 'openai' },
+      ] },
+      { key: 'ai.base_url', label: 'Base URL', description: 'OpenAI 兼容接口地址，例如 https://api.openai.com/v1。', type: 'string', defaultValue: 'https://api.openai.com/v1' },
+      { key: 'ai.model', label: '模型', description: '帮助中心问答使用的模型名称。', type: 'string', defaultValue: 'gpt-4o-mini' },
+      { key: 'ai.api_key', label: 'API Key', description: 'AI 服务访问密钥，仅保存在后端。', type: 'password', defaultValue: '' },
+    ],
+  },
+  {
     code: 'ui',
     name: '界面设置',
     description: '界面语言和主题。',
