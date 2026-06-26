@@ -2,7 +2,10 @@ import request from '@/utils/request'
 
 export const systemApi = {
   getSettings() {
-    return request.get('/settings')
+    return request.get('/settings', {
+      params: { _t: Date.now() },
+      headers: { 'Cache-Control': 'no-cache' },
+    })
   },
   updateSettings(data: any) {
     return request.put('/settings', { settings: data })

@@ -4,6 +4,13 @@ import { writeAuditLog } from '../../common/audit';
 import { ok, fail, message } from '../../common/response';
 import { SystemSetting } from '../../db/models';
 import { sendTestEmail } from '../../services/notification-service';
+import {
+  encryptSettingValue,
+  getMaskedSettingValue,
+  hasSensitiveSettingValue,
+  isSensitiveSettingKey,
+  maskSettingValue,
+} from '../../services/settings-service';
 
 const router = Router();
 
@@ -150,20 +157,26 @@ async function getSettingsMap() {
     raw: true,
   });
 
-  const settings: Record<string, { value: string; updated_at: Date | null; is_default: boolean }> = {};
+  const settings: Record<string, { value: string | null; raw_value: string; masked_value: string | null; updated_at: Date | null; is_default: boolean; has_value: boolean }> = {};
   for (const definition of SETTING_DEFINITIONS) {
     settings[definition.key] = {
-      value: definition.defaultValue,
+      value: maskSettingValue(definition.key, definition.defaultValue),
+      raw_value: definition.defaultValue,
+      masked_value: getMaskedSettingValue(definition.key, definition.defaultValue),
       updated_at: null,
       is_default: true,
+      has_value: hasSensitiveSettingValue(definition.key, definition.defaultValue),
     };
   }
 
   for (const row of rows) {
     settings[row.key] = {
-      value: row.value,
+      value: maskSettingValue(row.key, row.value),
+      raw_value: row.value,
+      masked_value: getMaskedSettingValue(row.key, row.value),
       updated_at: row.updated_at,
       is_default: false,
+      has_value: hasSensitiveSettingValue(row.key, row.value),
     };
   }
 
@@ -172,6 +185,7 @@ async function getSettingsMap() {
 
 router.get('/', authMiddleware, async (_req, res) => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const settings = await getSettingsMap();
     ok(res, {
       settings: Object.fromEntries(Object.entries(settings).map(([key, item]) => [key, item.value])),
@@ -179,9 +193,11 @@ router.get('/', authMiddleware, async (_req, res) => {
         ...group,
         settings: group.settings.map((setting) => ({
           ...setting,
-          value: settings[setting.key]?.value ?? setting.defaultValue,
+          value: settings[setting.key] ? settings[setting.key].value : setting.defaultValue,
+          masked_value: settings[setting.key]?.masked_value ?? null,
           updated_at: settings[setting.key]?.updated_at ?? null,
           is_default: settings[setting.key]?.is_default ?? true,
+          has_value: settings[setting.key]?.has_value ?? false,
         })),
       })),
     });
@@ -204,6 +220,10 @@ router.put('/', authMiddleware, async (req, res) => {
         return fail(res, 400, `未知配置项：${key}`);
       }
 
+      if (isSensitiveSettingKey(key) && (rawValue === '' || rawValue == null)) {
+        continue;
+      }
+
       let value: string;
       try {
         value = validateSettingValue(definition, rawValue);
@@ -211,7 +231,7 @@ router.put('/', authMiddleware, async (req, res) => {
         return fail(res, 400, err instanceof Error ? err.message : '配置值不合法');
       }
 
-      await SystemSetting.upsert({ key, value, updated_at: new Date() });
+      await SystemSetting.upsert({ key, value: encryptSettingValue(key, value), updated_at: new Date() });
       updatedKeys.push(key);
     }
 
@@ -244,15 +264,19 @@ router.post('/test-email', authMiddleware, async (req, res) => {
 
 router.get('/:key', authMiddleware, async (req, res) => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const definition = SETTING_MAP.get(req.params.key);
     if (!definition) return fail(res, 404, '设置项不存在');
 
     const row = await SystemSetting.findOne({ where: { key: req.params.key }, attributes: ['id', 'key', 'value', 'updated_at'], raw: true });
+    const rawValue = row?.value ?? definition.defaultValue;
     ok(res, {
       ...definition,
-      value: row?.value ?? definition.defaultValue,
+      value: maskSettingValue(req.params.key, rawValue),
+      masked_value: getMaskedSettingValue(req.params.key, rawValue),
       updated_at: row?.updated_at ?? null,
       is_default: !row,
+      has_value: hasSensitiveSettingValue(req.params.key, rawValue),
     });
   } catch {
     fail(res, 500, '服务器内部错误');
@@ -265,6 +289,10 @@ router.put('/:key', authMiddleware, async (req, res) => {
     if (!definition) return fail(res, 404, '设置项不存在');
     if (req.body?.value === undefined) return fail(res, 400, '缺少 value');
 
+    if (isSensitiveSettingKey(req.params.key) && (req.body.value === '' || req.body.value == null)) {
+      return message(res, '设置未变更');
+    }
+
     let value: string;
     try {
       value = validateSettingValue(definition, req.body.value);
@@ -272,7 +300,7 @@ router.put('/:key', authMiddleware, async (req, res) => {
       return fail(res, 400, err instanceof Error ? err.message : '配置值不合法');
     }
 
-    await SystemSetting.upsert({ key: req.params.key, value, updated_at: new Date() });
+    await SystemSetting.upsert({ key: req.params.key, value: encryptSettingValue(req.params.key, value), updated_at: new Date() });
     await writeAuditLog(req, {
       action: 'settings.update',
       targetType: 'settings',

@@ -20,7 +20,6 @@ backend-node/node_modules/
 .env
 .env.local
 .env.production
-.env.example
 
 # ─── 运行时 ───
 *.log
@@ -38,4 +37,3 @@ backend-node/*.log
 # ─── 前端构建缓存 ───
 frontend-vue/dist/
 backend-node/dist/
-

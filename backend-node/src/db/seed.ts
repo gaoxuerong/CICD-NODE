@@ -1,6 +1,22 @@
 import bcrypt from 'bcryptjs';
 import { User, Role, Permission, SystemSetting } from './models';
 
+function getSeedAccount() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+  const userPassword = process.env.SEED_USER_PASSWORD;
+
+  if (isProduction && !adminPassword) {
+    throw new Error('SEED_ADMIN_PASSWORD is required when seeding an empty production database');
+  }
+
+  return {
+    adminPassword: adminPassword ?? 'admin123',
+    userPassword: userPassword ?? 'user123',
+    createDemoUser: !isProduction || Boolean(userPassword),
+  };
+}
+
 export async function seed() {
   const userCount = await User.count();
   if (userCount > 0) {
@@ -9,13 +25,19 @@ export async function seed() {
   }
 
   const now = new Date();
-  const hash = bcrypt.hashSync('admin123', 10);
-  const userHash = bcrypt.hashSync('user123', 10);
+  const seedAccount = getSeedAccount();
+  const hash = bcrypt.hashSync(seedAccount.adminPassword, 10);
 
-  await User.bulkCreate([
+  const users = [
     { username: 'admin', email: 'admin@example.com', nickname: '系统管理员', password_hash: hash, role: 'admin', status: 'active', is_superuser: 1, created_at: now, updated_at: now },
-    { username: 'user', email: 'user@example.com', nickname: '普通用户', password_hash: userHash, role: 'developer', status: 'active', is_superuser: 0, created_at: now, updated_at: now },
-  ]);
+  ];
+
+  if (seedAccount.createDemoUser) {
+    const userHash = bcrypt.hashSync(seedAccount.userPassword, 10);
+    users.push({ username: 'user', email: 'user@example.com', nickname: '普通用户', password_hash: userHash, role: 'developer', status: 'active', is_superuser: 0, created_at: now, updated_at: now });
+  }
+
+  await User.bulkCreate(users);
 
   await Role.bulkCreate([
     { code: 'superadmin', name: '超级管理员', description: 'Full system access', level: 100, is_system: 1, permissions: '["*"]', created_at: now, updated_at: now },
@@ -72,7 +94,7 @@ export async function seed() {
     await SystemSetting.create({ key: k, value: v, updated_at: now });
   }
 
-  console.log('Seed: created admin/user accounts, default roles, permissions, and settings.');
+  console.log(`Seed: created ${seedAccount.createDemoUser ? 'admin/user accounts' : 'admin account'}, default roles, permissions, and settings.`);
 }
 
 if (require.main === module) {

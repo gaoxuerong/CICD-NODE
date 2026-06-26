@@ -1,6 +1,7 @@
 import { sequelize } from './sequelize';
 import { DataTypes, Op } from 'sequelize';
 import { Build, Environment, Pipeline, Project, ProjectMember, Role, SystemSetting, User } from './models';
+import { encryptSettingValue, isEncryptedSettingValue, isSensitiveSettingKey } from '../services/settings-service';
 
 async function ensureProjectGitCredentialColumn() {
   const queryInterface = sequelize.getQueryInterface();
@@ -266,6 +267,22 @@ async function ensureSystemSettingKeyIndex() {
   }
 }
 
+async function encryptSensitiveSystemSettings() {
+  const settings = await SystemSetting.findAll({
+    where: { key: { [Op.in]: ['smtp.password', 'ai.api_key'] } },
+    attributes: ['id', 'key', 'value'],
+  });
+
+  for (const setting of settings) {
+    if (!isSensitiveSettingKey(setting.key) || !setting.value || isEncryptedSettingValue(setting.value)) continue;
+
+    await setting.update({
+      value: encryptSettingValue(setting.key, setting.value),
+      updated_at: new Date(),
+    });
+  }
+}
+
 async function ensureManagerGitViewOnlyPermission() {
   const manager = await Role.findOne({ where: { code: 'manager' } });
   if (!manager) return;
@@ -370,6 +387,7 @@ export async function migrate() {
   await backfillProjectOwners();
   await ensureProjectMemberUniqueIndex();
   await ensureSystemSettingKeyIndex();
+  await encryptSensitiveSystemSettings();
   await ensureManagerGitViewOnlyPermission();
   await ensureDeveloperProjectViewOnlyPermissions();
   await ensureDefaultProjectEnvironments();

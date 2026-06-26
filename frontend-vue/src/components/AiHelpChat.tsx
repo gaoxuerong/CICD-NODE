@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { App as AntdApp, Button, ConfigProvider, Space, theme } from 'antd'
+import { App as AntdApp, Button, ConfigProvider, Segmented, Space, theme } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import { DeleteOutlined, QuestionCircleOutlined } from '@ant-design/icons'
 import { Bubble, Sender, XProvider } from '@ant-design/x'
 import type { BubbleItemType } from '@ant-design/x'
 import { XMarkdown } from '@ant-design/x-markdown'
-import { streamAiChat } from '@/api/ai'
+import { streamAiChat, streamAiChatSse } from '@/api/ai'
 import { clearAiChatRecord, readAiChatRecord, writeAiChatRecord } from '@/utils/aiChatStore'
 
 import 'antd/dist/reset.css'
@@ -14,6 +14,7 @@ const MAX_STORED_CHATS = 50
 
 type ChatRole = 'user' | 'assistant'
 type ChatStatus = 'local' | 'loading' | 'streaming' | 'success' | 'error'
+type StreamMode = 'default' | 'sse'
 
 interface StoredChatMessage {
   id: string
@@ -78,6 +79,7 @@ export default function AiHelpChat() {
   const [chats, setChats] = useState<StoredChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [loading, setLoading] = useState(false)
+  const [streamMode, setStreamMode] = useState<StreamMode>('default')
   const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -135,7 +137,8 @@ export default function AiHelpChat() {
       abortControllerRef.current = abortController
 
       try {
-        await streamAiChat(
+        const streamChat = streamMode === 'sse' ? streamAiChatSse : streamAiChat
+        await streamChat(
           toApiMessages([...chats, userMessage]),
           (chunk) => {
             streamedAnswer += chunk
@@ -173,7 +176,7 @@ export default function AiHelpChat() {
         abortControllerRef.current = null
       }
     },
-    [chats, loading, persistChats]
+    [chats, loading, persistChats, streamMode]
   )
 
   const cancelStream = useCallback(() => {
@@ -225,8 +228,20 @@ export default function AiHelpChat() {
         <AntdApp>
           <div className="ai-help-chat">
             <div className="ai-help-chat__toolbar">
-              <span className="ai-help-chat__status">{loading ? 'AI 正在回答' : 'AI 助手'}</span>
+              <span className="ai-help-chat__status">
+                {loading ? `AI 正在回答（${streamMode === 'sse' ? 'SSE' : '默认'}）` : 'AI 助手'}
+              </span>
               <Space>
+                <Segmented
+                  disabled={loading}
+                  size="small"
+                  value={streamMode}
+                  options={[
+                    { label: '默认流', value: 'default' },
+                    { label: 'SSE流', value: 'sse' },
+                  ]}
+                  onChange={(value) => setStreamMode(value as StreamMode)}
+                />
                 <Button
                   icon={<DeleteOutlined />}
                   size="small"

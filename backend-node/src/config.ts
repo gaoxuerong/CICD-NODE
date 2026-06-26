@@ -28,6 +28,7 @@ export const config = {
   githubToken: env('GITHUB_TOKEN', ''),
   githubWebhookSecret: env('GITHUB_WEBHOOK_SECRET', ''),
   webhookBaseUrl: env('WEBHOOK_BASE_URL', 'http://localhost:8080'),
+  enableApiDocs: env('ENABLE_API_DOCS', process.env.NODE_ENV === 'production' ? 'false' : 'true') === 'true',
 };
 
 export const paths = {

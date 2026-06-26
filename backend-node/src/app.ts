@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { config } from './config';
 import { swaggerSpec, swaggerUi } from './config/swagger';
 import { logger } from './common/logger';
@@ -22,8 +23,14 @@ import auditLogsRoutes from './modules/audit-logs/routes';
 import gitCredentialsRoutes from './modules/git-credentials/routes';
 import settingsRoutes from './modules/settings/routes';
 import aiRoutes from './modules/ai/routes';
+import aiSseRoutes from './modules/ai/sse-routes';
 
 const app = express();
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
 
 app.use(cors({
   origin: config.corsOrigins,
@@ -34,14 +41,16 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'CI/CD Platform API',
-}));
-app.get('/api-docs.json', (_req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.send(swaggerSpec);
-});
+if (config.enableApiDocs) {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'CI/CD Platform API',
+  }));
+  app.get('/api-docs.json', (_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+  });
+}
 
 app.use('/metrics', metricsRoutes);
 app.use('/api/health', healthRoutes);
@@ -59,6 +68,7 @@ app.use('/api/audit-logs', auditLogsRoutes);
 app.use('/api/git-credentials', gitCredentialsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/ai-sse', aiSseRoutes);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const status = err.status ?? 500;

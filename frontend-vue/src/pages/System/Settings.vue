@@ -56,8 +56,15 @@
                   v-model="form[setting.key]"
                   :type="setting.type === 'password' ? 'password' : 'text'"
                   :show-password="setting.type === 'password'"
+                  :placeholder="setting.type === 'password' && setting.has_value ? '留空表示不修改' : ''"
                   style="max-width: 420px"
                 />
+                <el-tag v-if="setting.type === 'password' && setting.masked_value" size="small" effect="plain">
+                  {{ setting.masked_value }}
+                </el-tag>
+                <el-tag v-if="setting.type === 'password' && setting.has_value" size="small" type="success" effect="plain">
+                  已配置
+                </el-tag>
                 <el-tag v-if="setting.is_default" size="small" effect="plain">默认值</el-tag>
               </div>
               <div class="setting-description">{{ setting.description }}</div>
@@ -91,7 +98,9 @@ const applyGroups = (items: any[]) => {
   if (items[0]?.code) activeGroup.value = items[0].code
   for (const group of items) {
     for (const setting of group.settings || []) {
-      form[setting.key] = setting.value ?? setting.defaultValue ?? ''
+      form[setting.key] = setting.type === 'password'
+        ? ''
+        : setting.value ?? setting.defaultValue ?? ''
       if (setting.type === 'number') {
         numberForm[setting.key] = Number(form[setting.key] || 0)
       }
@@ -116,9 +125,17 @@ const handleSave = async () => {
     form[key] = String(value ?? 0)
   }
 
+  const payload: Record<string, string> = {}
+  for (const group of groups.value) {
+    for (const setting of group.settings || []) {
+      if (setting.type === 'password' && !form[setting.key]) continue
+      payload[setting.key] = form[setting.key] ?? ''
+    }
+  }
+
   saving.value = true
   try {
-    const res = await systemApi.updateSettings({ ...form })
+    const res = await systemApi.updateSettings(payload)
     if (res.data.code === 0) {
       ElMessage.success('保存成功')
       fetchSettings()
